@@ -52,7 +52,7 @@ flowchart TD
 
 1. **Simulation:** The Python simulator generates GPS and OBD readings for individual trucks.
 2. **Ingestion:** Readings are published to EMQX using MQTT.
-3. **Bridging:** A Python bridge validates incoming messages and forwards them to Kafka.
+3. **Bridging:** A Python bridge forwards MQTT messages to Kafka.
 4. **Stream processing:** Flink SQL jobs validate GPS and OBD records and forward accepted events.
 5. **State management:** The Redis writer performs duplicate and stale-event checks and updates the latest truck state.
 6. **Live delivery:** Accepted updates are published through Redis Pub/Sub and delivered to connected dashboard clients using WebSockets.
@@ -76,16 +76,17 @@ flowchart TD
 
 ### MQTT-to-Kafka bridge
 
-The bridge connects EMQX to Kafka and handles:
+The Python bridge connects EMQX to Kafka.
 
-- MQTT persistent sessions.
-- Manual MQTT acknowledgements.
-- Kafka delivery confirmation before acknowledging MQTT messages.
-- Retry and delivery handling.
-- Telemetry metadata and range validation.
-- Invalid-message routing to a dead-letter topic.
+It:
+- Subscribes to GPS and OBD MQTT topics.
+- Parses incoming JSON messages.
+- Extracts the truck identifier.
+- Routes messages to the corresponding raw Kafka topic.
+- Uses the truck identifier as the Kafka message key.
+- Configures Kafka producer acknowledgements and retries.
 
-This prevents the bridge from acknowledging a message before Kafka has confirmed its delivery.
+The current implementation uses asynchronous Kafka delivery and does not implement manual MQTT acknowledgements, persistent MQTT sessions, or automatic dead-letter routing.
 
 ### Stream processing with Flink
 
@@ -101,7 +102,7 @@ The Flink SQL jobs perform basic validation of:
 - GPS coordinates and speed.
 - Engine RPM, fuel level, temperature and battery voltage.
 
-Invalid records are filtered out by the processing jobs.
+Records that fail the configured SQL validation conditions are filtered out. Automatic routing of invalid records to the dead-letter topic is not currently implemented.
 
 ### Duplicate and stale-event protection
 
@@ -156,9 +157,9 @@ Separate storage buckets are used:
 - `gps-history`
 - `obd-history`
 
-Objects use deterministic partition and offset-based names to support safe retries.
+Objects are written using generated UUID-based filenames.
 
-The archiver uploads batches before committing their Kafka offsets.
+The archiver uploads batches before committing their Kafka offsets. Deterministic object naming and complete crash-recovery handling are not currently implemented.
 
 ## 5. Kafka Topics
 
@@ -168,7 +169,7 @@ The archiver uploads batches before committing their Kafka offsets.
 | `obd-telemetry` | Raw OBD events                          |
 | `gps-latest`    | Validated GPS events                    |
 | `obd-processed` | Validated OBD events                    |
-| `telemetry-dlq` | Invalid messages received by the bridge |
+| `telemetry-dlq` | Reserved dead-letter topic; automatic routing is not currently implemented |
 
 The development Kafka broker is configured with 12 partitions and a replication factor of 1.
 
@@ -210,7 +211,12 @@ fleet-tracking-system/
 │       └── flink-sql-connector-kafka-3.4.0-1.20.jar
 │
 ├── infrastructure/
-│   └── docker-compose.yml
+│   ├── docker-compose.yml
+│   ├── setup-kafka.ps1
+│   └── flink/
+│       └── sql/
+│           ├── 01-gps-pipeline.sql
+│           └── 02-obd-pipeline.sql
 │
 ├── docs/
 │
@@ -260,7 +266,7 @@ These are local development configurations, not production security settings.
 pip install -r simulator/requirements.txt
 ```
 
-The Python services also require their respective Kafka, Redis and S3-compatible storage client libraries. Ensure these dependencies are included in the requirements file before running the complete pipeline.
+The requirements file includes the Python dependencies used by the simulator and supporting services, including MQTT, Kafka, Redis and S3-compatible storage clients.
 
 ### Step 4: Install backend dependencies
 
@@ -408,7 +414,7 @@ The development pipeline has been exercised using simulated telemetry.
 | Redis persistence and recovery | Verified |
 | Historical GPS/OBD archiving   | Verified |
 
-The live demo was tested with 10 simulated trucks, including stopping and restarting the simulator to verify offline detection and recovery.
+The live demo was tested with 100 simulated trucks. Additional tests covered stopping and restarting the simulator, offline detection, recovery, duplicate-event rejection and stale-event rejection.
 
 These tests demonstrate functional behaviour in a local development environment. They are not a production-scale throughput or availability benchmark.
 

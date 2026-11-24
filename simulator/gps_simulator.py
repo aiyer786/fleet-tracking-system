@@ -1,4 +1,4 @@
-
+import uuid
 import asyncio
 import json
 import random
@@ -13,9 +13,20 @@ PORT = 1883
 
 BASE_LAT = 19.0760
 BASE_LON = 72.8777
+BOOT_ID = str(uuid.uuid4())
 
 
 class Truck:
+    def event_metadata(self):
+        self.sequence += 1
+
+        return {
+            "eventId": str(uuid.uuid4()),
+            "bootId": BOOT_ID,
+            "sequenceNumber": self.sequence,
+            "eventTime": int(time.time() * 1000),
+            "schemaVersion": 1
+        }
     def __init__(self, truck_id):
         self.truck_id = truck_id
         self.latitude = BASE_LAT + random.uniform(-0.1, 0.1)
@@ -24,22 +35,22 @@ class Truck:
         self.sequence = 0
 
     def generate_gps(self):
-        self.sequence += 1
         self.latitude += random.uniform(-0.0005, 0.0005)
         self.longitude += random.uniform(-0.0005, 0.0005)
         self.speed = max(0, min(120, self.speed + random.uniform(-5, 5)))
 
         return {
+            **self.event_metadata(),
             "truckId": self.truck_id,
             "latitude": round(self.latitude, 6),
             "longitude": round(self.longitude, 6),
             "speed": round(self.speed, 2),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "sequenceNumber": self.sequence
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
 
     def generate_obd(self):
         return {
+            **self.event_metadata(),
             "truckId": self.truck_id,
             "engineRPM": random.randint(800, 3000),
             "fuelLevel": round(random.uniform(20, 100), 2),
