@@ -58,7 +58,36 @@ flowchart TD
 6. **Live delivery:** Accepted updates are published through Redis Pub/Sub and delivered to connected dashboard clients using WebSockets.
 7. **Historical storage:** A separate archiver consumes raw Kafka telemetry and stores compressed historical data in Silo.
 
-## 3. Technology Stack
+## 3. Implementation Demo
+
+The following screenshots demonstrate the running FleetOps prototype and its end-to-end telemetry pipeline.
+
+### 3.1 MQTT Telemetry Ingestion — EMQX
+
+The Python simulator publishes GPS and OBD telemetry through EMQX. Incoming MQTT messages contain event metadata, including event IDs, boot IDs and sequence numbers.
+
+![EMQX MQTT ingestion](docs/media/emqx-ingestion.png)
+
+### 3.2 Live Fleet Monitoring Dashboard
+
+The React dashboard displays the simulated fleet, vehicle locations, online/offline status and live GPS and OBD readings.
+
+![FleetOps dashboard](docs/media/fleet-dashboard.png)
+
+### 3.3 Individual Truck Telemetry
+
+Selecting a truck displays its latest GPS coordinates, speed and OBD information.
+
+![Individual truck details](docs/media/truck-details.png)
+
+### 3.4 Apache Flink Stream Processing
+
+The GPS and OBD Flink SQL jobs independently validate incoming telemetry and publish accepted events to their respective Kafka topics.
+
+![Flink running jobs](docs/media/flink-jobs.png)
+
+
+## 4. Technology Stack
 
 | Component           | Technology                   | Responsibility                         |
 | ------------------- | ---------------------------- | -------------------------------------- |
@@ -72,7 +101,7 @@ flowchart TD
 | Mapping             | Leaflet, React-Leaflet       | Live vehicle locations                 |
 | Historical storage  | Silo (S3-compatible)         | Compressed telemetry archives          |
 
-## 4. Key Engineering Features
+## 5. Key Engineering Features
 
 ### MQTT-to-Kafka bridge
 
@@ -161,7 +190,7 @@ Objects are written using generated UUID-based filenames.
 
 The archiver uploads batches before committing their Kafka offsets. Deterministic object naming and complete crash-recovery handling are not currently implemented.
 
-## 5. Kafka Topics
+## 6. Kafka Topics
 
 | Topic           | Purpose                                 |
 | --------------- | --------------------------------------- |
@@ -173,7 +202,7 @@ The archiver uploads batches before committing their Kafka offsets. Deterministi
 
 The development Kafka broker is configured with 12 partitions and a replication factor of 1.
 
-## 6. Project Structure
+## 7. Project Structure
 
 ```text
 fleet-tracking-system/
@@ -224,7 +253,7 @@ fleet-tracking-system/
 └── README.md
 ```
 
-## 7. Local Setup
+## 8. Local Setup
 
 ### Prerequisites
 
@@ -354,7 +383,7 @@ python simulator/gps_simulator.py --trucks 10
 
 The dashboard should begin displaying the simulated fleet.
 
-## 8. API Overview
+## 9. API Overview
 
 ### Get fleet data
 
@@ -394,7 +423,7 @@ The backend exposes a WebSocket connection on port `3000`.
 
 Accepted GPS and OBD updates are broadcast to connected clients through Redis Pub/Sub.
 
-## 9. Testing and Validation
+## 10. Testing and Validation
 
 The development pipeline has been exercised using simulated telemetry.
 
@@ -418,7 +447,7 @@ The live demo was tested with 100 simulated trucks. Additional tests covered sto
 
 These tests demonstrate functional behaviour in a local development environment. They are not a production-scale throughput or availability benchmark.
 
-## 10. Scalability and Reliability Considerations
+## 11. Scalability and Reliability Considerations
 
 The architecture separates ingestion, stream processing, state management, API delivery and historical storage.
 
@@ -439,7 +468,7 @@ Potential production improvements include:
 
 The current Docker Compose deployment is a single-node development environment. High availability and large-scale throughput have not been benchmarked.
 
-## 11. Known Limitations
+## 12. Known Limitations
 
 - Device simulation is used instead of physical vehicle hardware.
 - Kafka is configured as a single broker with replication factor 1.
@@ -450,7 +479,7 @@ The current Docker Compose deployment is a single-node development environment. 
 - The local setup uses development credentials and does not represent a production security configuration.
 - The current project has not been benchmarked at 100,000 concurrent trucks.
 
-## 12. Future Improvements
+## 13. Future Improvements
 
 - Automated deployment of Flink SQL jobs.
 - Automated integration and load testing.
