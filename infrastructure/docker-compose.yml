@@ -1,0 +1,133 @@
+
+services:
+  kafka:
+    image: apache/kafka:4.1.0
+    container_name: fleet-kafka
+    hostname: kafka
+
+    ports:
+      - "9092:9092"
+
+    environment:
+      # Kafka's identity
+      KAFKA_NODE_ID: 1
+
+      # Run Kafka in both broker and controller roles
+      KAFKA_PROCESS_ROLES: broker,controller
+
+      # Three communication channels
+      KAFKA_LISTENERS: PLAINTEXT://:9092,INTERNAL://:29092,CONTROLLER://:9093
+
+      # How clients find Kafka
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,INTERNAL://kafka:29092
+
+      # Controller configuration
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,INTERNAL:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+
+      # Local development settings
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_NUM_PARTITIONS: 12
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+
+      # Where Kafka stores its messages
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+
+      # Limit Java memory consumption
+      KAFKA_HEAP_OPTS: "-Xms512m -Xmx768m"
+
+      # KRaft cluster identifier
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+
+    restart: unless-stopped
+
+    mem_limit: 1536m
+  
+
+  emqx:
+    image: emqx/emqx:5.8.8
+    container_name: fleet-emqx
+    hostname: emqx
+
+    ports:
+      - "1883:1883"
+      - "18083:18083"
+
+    environment:
+      EMQX_NODE_NAME: emqx@127.0.0.1
+      EMQX_DASHBOARD__DEFAULT_USERNAME: admin
+      EMQX_DASHBOARD__DEFAULT_PASSWORD: public
+
+    restart: unless-stopped
+
+    mem_limit: 768m
+
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: fleet-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy noeviction
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    mem_limit: 384m
+
+  jobmanager:
+    image: flink:1.20.2-scala_2.12-java17
+    container_name: fleet-flink-jobmanager
+    ports:
+      - "8081:8081"
+    command: jobmanager
+    environment:
+      FLINK_PROPERTIES: |
+        jobmanager.rpc.address: jobmanager
+        jobmanager.memory.process.size: 700m
+    restart: unless-stopped
+    mem_limit: 1024m
+    volumes:
+      - ../flink/lib/flink-sql-connector-kafka-3.4.0-1.20.jar:/opt/flink/lib/flink-sql-connector-kafka-3.4.0-1.20.jar:ro
+
+  taskmanager:
+    image: flink:1.20.2-scala_2.12-java17
+    container_name: fleet-flink-taskmanager
+    depends_on:
+      - jobmanager
+    command: taskmanager
+    environment:
+      FLINK_PROPERTIES: |
+        jobmanager.rpc.address: jobmanager
+        taskmanager.numberOfTaskSlots: 2
+        taskmanager.memory.process.size: 1200m
+    restart: unless-stopped
+    mem_limit: 1536m
+    volumes:
+      - ../flink/lib/flink-sql-connector-kafka-3.4.0-1.20.jar:/opt/flink/lib/flink-sql-connector-kafka-3.4.0-1.20.jar:ro
+
+  minio:
+    image: pgsty/silo:latest
+    container_name: fleet-minio
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: REDACTED_ACCESS_KEY
+      MINIO_ROOT_PASSWORD: REDACTED_SECRET
+    volumes:
+      - minio_data:/data
+    restart: unless-stopped
+
+volumes:
+  kafka_data:
+  redis_data:
+  minio_data:

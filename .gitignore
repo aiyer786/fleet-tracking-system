@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Generated data
+*.jsonl
+*.jsonl.gz
+*.parquet
+data/
+
+# IDE and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
