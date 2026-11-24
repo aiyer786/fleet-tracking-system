@@ -15,9 +15,9 @@ from kafka import KafkaConsumer
 # Silo connection (S3-compatible API)
 s3 = boto3.client(
     "s3",
-    endpoint_url="http://localhost:9000",
-    aws_access_key_id="REDACTED_ACCESS_KEY",
-    aws_secret_access_key="REDACTED_SECRET",
+    endpoint_url=os.getenv("SILO_ENDPOINT_URL", "http://localhost:9000"),
+aws_access_key_id=os.getenv("SILO_ACCESS_KEY"),
+aws_secret_access_key=os.getenv("SILO_SECRET_KEY"),
     region_name="us-east-1",
     config=Config(
         signature_version="s3v4",
